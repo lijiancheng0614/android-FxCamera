@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">FxCamera</string>
+    <string name="title_activity_main">FxCamera</string>
+
+    <string name="action_settings">Settings</string>
+
+    <string name="camera_not_found">No camera harware found</string>
+    <string name="take_photo_help">Touch anywhere on screen to take picture</string>
+</resources>
