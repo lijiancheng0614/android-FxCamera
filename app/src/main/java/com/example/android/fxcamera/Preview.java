@@ -51,53 +51,10 @@ class Preview extends ViewGroup implements SurfaceHolder.Callback {
         }
     }
 
-    public void surfaceCreated(SurfaceHolder holder) {
-        // The Surface has been created, now tell the mCamera where to draw the mPreview.
-        try {
-            mCamera.setPreviewDisplay(holder);
-            mCamera.startPreview();
-        } catch (IOException e) {
-            Log.d(TAG, "Error setting mCamera mPreview: " + e.getMessage());
-        }
-    }
-
-    public void surfaceDestroyed(SurfaceHolder holder) {
-        // empty. Take care of releasing the Camera mPreview in your activity.
-    }
-
-    public void surfaceChanged(SurfaceHolder holder, int format, int w, int h) {
-        // If your mPreview can change or rotate, take care of those events here.
-        // Make sure to stop the mPreview before resizing or reformatting it.
-
-        if (mHolder.getSurface() == null) {
-            // mPreview surface does not exist
-            return;
-        }
-
-        // stop mPreview before making changes
-        try {
-            mCamera.stopPreview();
-        } catch (Exception e) {
-            // ignore: tried to stop a non-existent mPreview
-        }
-
-        // set mPreview size and make any resize, rotate or
-        // reformatting changes here
-
-        // start mPreview with new settings
-        try {
-            mCamera.setPreviewDisplay(mHolder);
-            mCamera.startPreview();
-
-        } catch (Exception e) {
-            Log.d(TAG, "Error starting mCamera mPreview: " + e.getMessage());
-        }
-    }
-
     @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-        // We purposely disregard child measurements because activity as a
-        // wrapper to a SurfaceView that centers the mCamera mPreview instead
+        // We purposely disregard child measurements because act as a
+        // wrapper to a SurfaceView that centers the camera preview instead
         // of stretching it.
         final int width = resolveSize(getSuggestedMinimumWidth(), widthMeasureSpec);
         final int height = resolveSize(getSuggestedMinimumHeight(), heightMeasureSpec);
@@ -136,36 +93,57 @@ class Preview extends ViewGroup implements SurfaceHolder.Callback {
         }
     }
 
+    public void surfaceCreated(SurfaceHolder holder) {
+        // The Surface has been created, acquire the camera and tell it where
+        // to draw.
+        try {
+            if (mCamera != null) {
+                mCamera.setPreviewDisplay(holder);
+            }
+        } catch (IOException exception) {
+            Log.e(TAG, "IOException caused by setPreviewDisplay()", exception);
+        }
+    }
+
+    public void surfaceDestroyed(SurfaceHolder holder) {
+        // Surface will be destroyed when we return, so stop the preview.
+        if (mCamera != null) {
+            mCamera.stopPreview();
+        }
+    }
+
+    public void surfaceChanged(SurfaceHolder holder, int format, int w, int h) {
+        if (mCamera != null) {
+            Camera.Parameters parameters = mCamera.getParameters();
+            parameters.setPreviewSize(mPreviewSize.width, mPreviewSize.height);
+            requestLayout();
+
+            mCamera.setParameters(parameters);
+            mCamera.startPreview();
+        }
+    }
+
     private Size getOptimalPreviewSize(List<Size> sizes, int w, int h) {
-        // Use a very small tolerance because we want an exact match.
         final double ASPECT_TOLERANCE = 0.1;
         double targetRatio = (double) w / h;
-        if (sizes == null)
-            return null;
+        if (sizes == null) return null;
 
         Size optimalSize = null;
-
-        // Start with max value and refine as we iterate over available preview sizes. This is the
-        // minimum difference between view and camera height.
         double minDiff = Double.MAX_VALUE;
 
-        // Target view height
         int targetHeight = h;
 
-        // Try to find a preview size that matches aspect ratio and the target view size.
-        // Iterate over all available sizes and pick the largest size that can fit in the view and
-        // still maintain the aspect ratio.
+        // Try to find an size match aspect ratio and size
         for (Size size : sizes) {
             double ratio = (double) size.width / size.height;
-            if (Math.abs(ratio - targetRatio) > ASPECT_TOLERANCE)
-                continue;
+            if (Math.abs(ratio - targetRatio) > ASPECT_TOLERANCE) continue;
             if (Math.abs(size.height - targetHeight) < minDiff) {
                 optimalSize = size;
                 minDiff = Math.abs(size.height - targetHeight);
             }
         }
 
-        // Cannot find preview size that matches the aspect ratio, ignore the requirement
+        // Cannot find the one match the aspect ratio, ignore the requirement
         if (optimalSize == null) {
             minDiff = Double.MAX_VALUE;
             for (Size size : sizes) {
@@ -177,4 +155,5 @@ class Preview extends ViewGroup implements SurfaceHolder.Callback {
         }
         return optimalSize;
     }
+
 }

@@ -22,6 +22,7 @@ import android.view.View.OnClickListener;
 import android.view.ViewGroup.LayoutParams;
 import android.view.Window;
 import android.view.WindowManager;
+import android.widget.ImageButton;
 import android.widget.RelativeLayout;
 import android.widget.Toast;
 
@@ -44,7 +45,8 @@ public class MainActivity extends Activity {
         ((RelativeLayout) findViewById(R.id.layout)).addView(mPreview);
         mPreview.setKeepScreenOn(true);
 
-        mPreview.setOnClickListener(new OnClickListener() {
+        ImageButton imageButtonCamera = (ImageButton) findViewById(R.id.imageButtonCamera);
+        imageButtonCamera.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View arg0) {
                 mCamera.takePicture(shutterCallback, rawCallback, jpegCallback);
