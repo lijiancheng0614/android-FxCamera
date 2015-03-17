@@ -53,7 +53,7 @@ public class MainActivity extends Activity {
         ImageButton imageButtonCamera = (ImageButton) findViewById(R.id.imageButtonCamera);
         imageButtonCamera.setOnClickListener(new OnClickListener() {
             @Override
-            public void onClick(View arg0) {
+            public void onClick(View v) {
                 mCamera.takePicture(shutterCallback, rawCallback, jpegCallback);
             }
         });
@@ -63,13 +63,7 @@ public class MainActivity extends Activity {
             @Override
             public void onClick(View v) {
                 if (isRecording) {
-                    // stop recording and release camera
-                    mMediaRecorder.stop();  // stop the recording
-                    releaseMediaRecorder(); // release the MediaRecorder object
-
-                    // inform the user that recording has stopped
-                    v.setBackgroundResource(R.mipmap.video);
-                    isRecording = false;
+                    stopVideoRecorder();
                     resetCam();
                 } else {
                     new VideoPrepareTask().execute(null, null, null);
@@ -91,7 +85,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onPause() {
-        releaseMediaRecorder();
+        stopVideoRecorder();
         if (mCamera != null) {
             mCamera.stopPreview();
             mPreview.setCamera(null);
@@ -183,16 +177,27 @@ public class MainActivity extends Activity {
         try {
             mMediaRecorder.prepare();
         } catch (IllegalStateException e) {
-            releaseMediaRecorder();
+            releaseVideoRecorder();
             return false;
         } catch (IOException e) {
-            releaseMediaRecorder();
+            releaseVideoRecorder();
             return false;
         }
         return true;
     }
 
-    private void releaseMediaRecorder() {
+    private void stopVideoRecorder() {
+        if (mMediaRecorder != null) {
+            mMediaRecorder.stop();  // stop the recording
+        }
+        releaseVideoRecorder(); // release the MediaRecorder object
+
+        // inform the user that recording has stopped
+        imageButtonVideo.setBackgroundResource(R.mipmap.video);
+        isRecording = false;
+    }
+
+    private void releaseVideoRecorder() {
         if (mMediaRecorder != null) {
             // clear recorder configuration
             mMediaRecorder.reset();
@@ -214,7 +219,7 @@ public class MainActivity extends Activity {
                 isRecording = true;
             } else {
                 // prepare didn't work, release the camera
-                releaseMediaRecorder();
+                releaseVideoRecorder();
                 return false;
             }
             return true;
