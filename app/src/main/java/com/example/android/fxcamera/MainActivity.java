@@ -12,10 +12,11 @@ import android.content.Intent;
 import android.hardware.Camera;
 import android.hardware.Camera.PictureCallback;
 import android.hardware.Camera.ShutterCallback;
+import android.hardware.Camera.Size;
+import android.media.CamcorderProfile;
+import android.media.MediaRecorder;
 import android.net.Uri;
 import android.os.AsyncTask;
-import android.os.Environment;
-import android.util.Log;
 import android.view.SurfaceView;
 import android.view.View;
 import android.view.View.OnClickListener;
@@ -28,9 +29,13 @@ import android.widget.Toast;
 
 public class MainActivity extends Activity {
 
-    private static final String TAG = "MainActivity";
     Preview mPreview;
     Camera mCamera;
+
+    // For video
+    private MediaRecorder mMediaRecorder;
+    private boolean isRecording = false;
+    ImageButton imageButtonVideo;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -53,33 +58,53 @@ public class MainActivity extends Activity {
             }
         });
 
-        Toast.makeText(this, getString(R.string.take_photo_help), Toast.LENGTH_LONG).show();
+        imageButtonVideo = (ImageButton) findViewById(R.id.imageButtonVideo);
+        imageButtonVideo.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (isRecording) {
+                    // stop recording and release camera
+                    mMediaRecorder.stop();  // stop the recording
+                    releaseMediaRecorder(); // release the MediaRecorder object
+
+                    // inform the user that recording has stopped
+                    v.setBackgroundResource(R.mipmap.video);
+                    isRecording = false;
+                    resetCam();
+                } else {
+                    new VideoPrepareTask().execute(null, null, null);
+                }
+            }
+        });
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        int numCams = Camera.getNumberOfCameras();
-        if (numCams > 0) {
-            try {
-                mCamera = Camera.open(0);
-                mCamera.startPreview();
-                mPreview.setCamera(mCamera);
-            } catch (RuntimeException ex) {
-                Toast.makeText(this, getString(R.string.camera_not_found), Toast.LENGTH_LONG).show();
-            }
+        mCamera = CameraHelper.getDefaultCameraInstance();
+        if (mCamera != null) {
+            resetCam();
+        } else {
+            Toast.makeText(this, getString(R.string.camera_not_found), Toast.LENGTH_LONG).show();
         }
     }
 
     @Override
     protected void onPause() {
+        releaseMediaRecorder();
         if (mCamera != null) {
             mCamera.stopPreview();
             mPreview.setCamera(null);
+            releaseCamera();
+        }
+        super.onPause();
+    }
+
+    private void releaseCamera() {
+        if (mCamera != null) {
             mCamera.release();
             mCamera = null;
         }
-        super.onPause();
     }
 
     private void resetCam() {
@@ -115,17 +140,11 @@ public class MainActivity extends Activity {
         @Override
         protected Void doInBackground(byte[]... data) {
             try {
-                File dir = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM), "Camera");
-                dir.mkdirs();
-
-                String fileName = String.format("%d.jpg", System.currentTimeMillis());
-                File outFile = new File(dir, fileName);
-
+                File outFile = CameraHelper.getOutputMediaFile(CameraHelper.MEDIA_TYPE_IMAGE);
                 FileOutputStream outStream = new FileOutputStream(outFile);
                 outStream.write(data[0]);
                 outStream.flush();
                 outStream.close();
-                Log.d(TAG, "Wrote bytes: " + data.length + " to " + outFile.getAbsolutePath());
                 refreshGallery(outFile);
             } catch (FileNotFoundException e) {
                 e.printStackTrace();
@@ -133,6 +152,81 @@ public class MainActivity extends Activity {
                 e.printStackTrace();
             }
             return null;
+        }
+    }
+
+
+    private boolean prepareVideoRecorder() {
+        mMediaRecorder = new MediaRecorder();
+
+        // Step 1: Unlock and set camera to MediaRecorder
+        mCamera.unlock();
+        mMediaRecorder.setCamera(mCamera);
+
+        // Step 2: Set sources
+        mMediaRecorder.setAudioSource(MediaRecorder.AudioSource.DEFAULT);
+        mMediaRecorder.setVideoSource(MediaRecorder.VideoSource.CAMERA);
+
+        // Step 3: Set a CamcorderProfile (requires API Level 8 or higher)
+        CamcorderProfile profile = CamcorderProfile.get(CamcorderProfile.QUALITY_HIGH);
+        Size previewSize = mPreview.getPreviewSize();
+        profile.videoFrameWidth = previewSize.width;
+        profile.videoFrameHeight = previewSize.height;
+        mMediaRecorder.setProfile(profile);
+
+        // Step 4: Set output file
+        File outFile = CameraHelper.getOutputMediaFile(CameraHelper.MEDIA_TYPE_VIDEO);
+        mMediaRecorder.setOutputFile(outFile.toString());
+        refreshGallery(outFile);
+
+        // Step 5: Prepare configured MediaRecorder
+        try {
+            mMediaRecorder.prepare();
+        } catch (IllegalStateException e) {
+            releaseMediaRecorder();
+            return false;
+        } catch (IOException e) {
+            releaseMediaRecorder();
+            return false;
+        }
+        return true;
+    }
+
+    private void releaseMediaRecorder() {
+        if (mMediaRecorder != null) {
+            // clear recorder configuration
+            mMediaRecorder.reset();
+            // release the recorder object
+            mMediaRecorder.release();
+            mMediaRecorder = null;
+        }
+    }
+
+    private class VideoPrepareTask extends AsyncTask<Void, Void, Boolean> {
+
+        @Override
+        protected Boolean doInBackground(Void... voids) {
+            // initialize video camera
+            if (prepareVideoRecorder()) {
+                // Camera is available and unlocked, MediaRecorder is prepared,
+                // now you can start recording
+                mMediaRecorder.start();
+                isRecording = true;
+            } else {
+                // prepare didn't work, release the camera
+                releaseMediaRecorder();
+                return false;
+            }
+            return true;
+        }
+
+        @Override
+        protected void onPostExecute(Boolean result) {
+            if (!result) {
+                MainActivity.this.finish();
+            }
+            // inform the user that recording has started
+            imageButtonVideo.setBackgroundResource(R.mipmap.stop);
         }
     }
 }
